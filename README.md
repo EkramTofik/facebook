@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # facebook_clone
 
 A new Flutter project.
@@ -17,4 +16,3 @@ For help getting started with Flutter development, view the
 samples, guidance on mobile development, and a full API reference.
 =======
 # facebook
->>>>>>> 4c9577e72c9e7e36793bbbb0831787a88d621840
