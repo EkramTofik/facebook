@@ -16,7 +16,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   File? _imageFile;
   bool _isLoading = false;
 
-  // Pick Image
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -27,48 +26,44 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
-  // Create Post
   Future<void> _createPost() async {
     final text = _textController.text.trim();
-    if (text.isEmpty && _imageFile == null) return;
+    if (text.isEmpty && _imageFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add some content')),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      final userId = SupabaseService.currentUserId;
-      if (userId == null) throw Exception('User not logged in');
+      await SupabaseService.createPost(
+        content: text.isEmpty ? null : text,
+        imagePath: _imageFile?.path,
+      );
 
-      String? imageUrl; // Will hold the uploaded URL if any
-      
-      // Upload Image if selected
-      if (_imageFile != null) {
-        final fileName = '${DateTime.now().toIso8601String()}_$userId.jpg';
-        final path = 'posts/$fileName';
-        
-        // Upload to 'post_images' bucket (must be created in Supabase Dashboard)
-        await SupabaseService.client.storage
-            .from('post_images')
-            .upload(path, _imageFile!);
-
-        // Get Public Link
-        imageUrl = SupabaseService.client.storage
-            .from('post_images')
-            .getPublicUrl(path);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post shared!')),
+        );
       }
-
-      // Insert Post Data
-      await SupabaseService.client.from('posts').insert({
-        'user_id': userId,
-        'content': text,
-        'image_url': imageUrl,
-      });
-
-      if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
   }
 
   @override
@@ -87,9 +82,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryColor,
               ),
-              child: const Text('POST', style: TextStyle(color: Colors.white)),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text('POST', style: TextStyle(color: Colors.white)),
             ),
-          )
+          ),
         ],
       ),
       body: Padding(
@@ -100,30 +104,60 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             TextField(
               controller: _textController,
               maxLines: 5,
+              autofocus: true,
               decoration: const InputDecoration(
                 hintText: 'What\'s on your mind?',
                 border: InputBorder.none,
               ),
             ),
-            
+
             if (_imageFile != null)
-              Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  image: DecorationImage(image: FileImage(_imageFile!), fit: BoxFit.cover),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+              Stack(
+                children: [
+                  Container(
+                    height: 200,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: FileImage(_imageFile!),
+                        fit: BoxFit.cover,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _imageFile = null),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              
+
             const Spacer(),
             const Divider(),
-            
+
             // Image Picker Button
             TextButton.icon(
               onPressed: _pickImage,
               icon: const Icon(Icons.photo_library, color: Colors.green),
-              label: const Text('Photo/Video', style: TextStyle(color: Colors.black)),
+              label: const Text(
+                'Photo/Video',
+                style: TextStyle(color: Colors.black),
+              ),
             ),
           ],
         ),

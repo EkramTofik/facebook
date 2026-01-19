@@ -1,47 +1,80 @@
-import 'user_model.dart';
-
+/// Model representing a post in the feed
 class PostModel {
   final String id;
-  final String userId;
+  final String authorId;
   final String? content;
   final String? imageUrl;
+  final String visibility;
   final DateTime createdAt;
-  
-  // We often join the 'profiles' table to get the user name and avatar
-  final UserModel? user; 
-  
-  // We can also fetch counts if we use Supabase count functionality
-  final int likeCount;
-  final int commentCount;
-  final bool isLikedByMe; // Helper to show if current user liked it
+  final DateTime? updatedAt;
+  final Map<String, dynamic>? profiles;
+  final int reactionCount;
+  final int commentsCount;
+  final String? myReaction; // 'like', 'love', 'haha', 'wow', 'sad', 'angry', or null
+
+  String get authorName => (profiles?['username'] as String?) ?? 'Unknown';
+  String? get authorAvatarUrl => profiles?['avatar_url'] as String?;
 
   PostModel({
     required this.id,
-    required this.userId,
+    required this.authorId,
     this.content,
     this.imageUrl,
+    required this.visibility,
     required this.createdAt,
-    this.user,
-    this.likeCount = 0,
-    this.commentCount = 0,
-    this.isLikedByMe = false,
+    this.updatedAt,
+    this.profiles,
+    this.reactionCount = 0,
+    this.commentsCount = 0,
+    this.myReaction,
   });
 
   factory PostModel.fromJson(Map<String, dynamic> json) {
+    // Extract my reaction from reactions array if present
+    String? myReaction;
+    final reactions = json['reactions'] as List<dynamic>?;
+    if (reactions != null && reactions.isNotEmpty) {
+      myReaction = reactions.first['reaction_type'] as String?;
+    }
+
     return PostModel(
-      id: json['id'],
-      userId: json['user_id'],
-      content: json['content'],
-      imageUrl: json['image_url'],
-      createdAt: DateTime.parse(json['created_at']),
-      // If we joined 'profiles' in the query, it will be in the json map
-      user: json['profiles'] != null ? UserModel.fromJson(json['profiles']) : null,
-      // These counts would come from a tailored query or separate count fetching
-      // For simplicity in this tutorial, we might handle counts separately, 
-      // but here is how you would map them if your query returns them.
-      likeCount: json['likes'] != null ? (json['likes'] as List).length : 0,
-      // For 'isLikedByMe', we usually process the list of likes in the frontend logic
-      // or using a specific RPC. We will handle this logic in the UI layer for simplicity.
+      id: json['id'] as String,
+      authorId: json['author_id'] as String,
+      content: json['content'] as String?,
+      imageUrl: json['image_url'] as String?,
+      visibility: json['visibility'] as String? ?? 'public',
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: json['updated_at'] != null 
+          ? DateTime.parse(json['updated_at'] as String) 
+          : null,
+      profiles: json['profiles'] as Map<String, dynamic>?,
+      reactionCount: (json['reaction_count'] as num?)?.toInt() ?? 0,
+      commentsCount: (json['comments_count'] as num?)?.toInt() ?? 0,
+      myReaction: myReaction,
+    );
+  }
+
+  /// Create a copy with updated fields
+  PostModel copyWith({
+    String? content,
+    String? imageUrl,
+    int? reactionCount,
+    int? commentsCount,
+    String? myReaction,
+    bool clearReaction = false,
+  }) {
+    return PostModel(
+      id: id,
+      authorId: authorId,
+      content: content ?? this.content,
+      imageUrl: imageUrl ?? this.imageUrl,
+      visibility: visibility,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      profiles: profiles,
+      reactionCount: reactionCount ?? this.reactionCount,
+      commentsCount: commentsCount ?? this.commentsCount,
+      myReaction: clearReaction ? null : (myReaction ?? this.myReaction),
     );
   }
 }

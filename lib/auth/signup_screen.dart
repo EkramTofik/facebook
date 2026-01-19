@@ -33,20 +33,27 @@ class _SignupScreenState extends State<SignupScreen> {
         password: password,
         // We pass user_metadata to store the username immediately or handle it in a trigger
         data: {'username': username},
-        emailRedirectTo: 'https://sybcqriolojnamwbdjsm.supabase.co/auth/v1/callback',
+        emailRedirectTo:
+            'https://sybcqriolojnamwbdjsm.supabase.co/auth/v1/callback',
       );
 
       // 2. Profile creation is handled by the Supabase Trigger 'on_auth_user_created'.
       // We don't need to manually insert into 'profiles' anymore.
 
       if (mounted) {
-        Navigator.pop(context); // Go back to login or let the auth state listener handle navigation
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account Created! Please Log In.')));
+        Navigator.pop(
+            context); // Go back to login or let the auth state listener handle navigation
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account Created! Please Log In.')));
       }
     } on AuthException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -62,18 +69,21 @@ class _SignupScreenState extends State<SignupScreen> {
           children: [
             TextField(
               controller: _usernameController,
-              decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'Username', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _emailController,
-              decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'Email', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _passwordController,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'Password', border: OutlineInputBorder()),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -81,30 +91,32 @@ class _SignupScreenState extends State<SignupScreen> {
               height: 50,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _signUp,
-                 style: ElevatedButton.styleFrom(
-                    backgroundColor: AppConstants.primaryColor,
-                  ),
-                child: _isLoading 
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.primaryColor,
+                ),
+                child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Sign Up', style: TextStyle(color: Colors.white)),
+                    : const Text('Sign Up',
+                        style: TextStyle(color: Colors.white)),
               ),
             ),
             const SizedBox(height: 10),
-            
+
             // Google Sign In
             SizedBox(
               width: double.infinity,
               height: 50,
               child: OutlinedButton.icon(
-                onPressed: _isLoading 
-                    ? null 
+                onPressed: _isLoading
+                    ? null
                     : () async {
                         setState(() => _isLoading = true);
                         await SupabaseService.signInWithGoogle();
                         if (mounted) setState(() => _isLoading = false);
                       },
                 icon: const Icon(Icons.login, color: Colors.red),
-                label: const Text('Continue with Google', style: TextStyle(color: Colors.black)),
+                label: const Text('Continue with Google',
+                    style: TextStyle(color: Colors.black)),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white,
                 ),

@@ -1,6 +1,6 @@
 name: facebook_clone
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
@@ -13,9 +13,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.6.0
   timeago: ^3.7.0
-  cached_network_image: ^3.4.1
+  cached_network_image: ^3.3.1
   image_picker: ^1.1.2
   intl: ^0.19.0
+  equatable: ^2.0.5
 
 dev_dependencies:
   flutter_test:

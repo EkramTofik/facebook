@@ -16,11 +16,13 @@ class UserModel {
   // Factory constructor to create a UserModel from a JSON map (Supabase response)
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id'] ?? '',
-      email: json['email'] ?? '',
-      username: json['username'] ?? 'User',
-      avatarUrl: json['avatar_url'],
-      createdAt: DateTime.parse(json['created_at']),
+      id: json['id'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      username: json['username'] as String? ?? 'User',
+      avatarUrl: json['avatar_url'] as String?,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
     );
   }
 

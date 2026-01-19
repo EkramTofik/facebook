@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../services/supabase_service.dart';
 import '../models/post_model.dart';
+import '../widgets/stories_bar.dart';
 import 'post_card.dart';
 import 'create_post_screen.dart';
-import '../utils/constants.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -14,157 +14,247 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
-  // Stream to get real-time updates from 'posts' table
-  // Note: For a real app, you would join tables appropriately or use a view.
-  // Here we will fetch posts and map them. Since Supabase stream returns Maps,
-  // we will process them.
-  // CRITICAL: .stream() on joined tables is tricky. 
-  // For simplicity and robustness in this exam, we will use a FutureBuilder that refreshes,
-  // or a simple stream on 'posts' without joins, then fetch user data separately.
-  // BETTER APPROACH for Beginners: Use StreamBuilder for real-time.
-  
-  // We will stream the 'posts' table ordered by created_at.
-  final _postsStream = SupabaseService.client
-      .from('posts')
-      .stream(primaryKey: ['id'])
-      .order('created_at', ascending: false);
+  final _scrollController = ScrollController();
+  List<PostModel> _posts = [];
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _offset = 0;
+  final int _limit = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPosts();
+    _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _loadPosts({bool refresh = false}) async {
+    if (_isLoadingMore || (!_hasMore && !refresh)) return;
+
+    setState(() {
+      if (refresh) {
+        _offset = 0;
+        _posts.clear();
+        _hasMore = true;
+        _isLoading = true;
+      } else {
+        _isLoadingMore = true;
+      }
+    });
+
+    try {
+      final newPosts = await SupabaseService.getPosts(
+        offset: _offset,
+        limit: _limit,
+      );
+
+      if (mounted) {
+        setState(() {
+          _posts.addAll(newPosts);
+          _offset += newPosts.length;
+          _hasMore = newPosts.length == _limit;
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Feed load error: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading feed: $e')),
+        );
+      }
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 400 &&
+        _hasMore &&
+        !_isLoadingMore) {
+      _loadPosts();
+    }
+  }
+
+  Future<void> _refresh() async {
+    await _loadPosts(refresh: true);
+  }
+
+  void _navigateToCreatePost() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CreatePostScreen()),
+    ).then((_) => _refresh());
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppConstants.scaffoldBackgroundColor,
-      // Create Post Widget embedded in the list or as a header
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            title: const Text('facebook', 
-              style: TextStyle(
-                color: AppConstants.primaryColor, 
-                fontWeight: FontWeight.bold, 
-                fontSize: 28
-              )
-            ),
-            backgroundColor: Colors.white,
-            floating: true,
-            actions: [
-               IconButton(
-                 icon: const Icon(Icons.add_circle, color: Colors.black),
-                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreatePostScreen())),
-               ),
-               IconButton(
-                 icon: const Icon(Icons.search, color: Colors.black),
-                 onPressed: () {},
-               ),
-            ],
+      backgroundColor: const Color(0xFFF0F2F5),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        title: const Text(
+          'facebook',
+          style: TextStyle(
+            color: Color(0xFF1877F2),
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.8,
           ),
-          SliverToBoxAdapter(child: _buildCreatePostArea()),
-          
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _postsStream,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return SliverToBoxAdapter(child: Center(child: Text('Error: ${snapshot.error}')));
-              }
-              if (!snapshot.hasData) {
-                return const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()));
-              }
+        ),
+        actions: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.grey[200],
+            child: const Icon(Icons.add, color: Colors.black87),
+          ),
+          const SizedBox(width: 12),
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.grey[200],
+            child: const Icon(Icons.search, color: Colors.black87),
+          ),
+          const SizedBox(width: 12),
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.grey[200],
+            child: const Icon(Icons.messenger_outline, color: Colors.black87),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        color: const Color(0xFF1877F2),
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            // Stories Bar
+            const SliverToBoxAdapter(
+              child: StoriesBar(),
+            ),
 
-              final data = snapshot.data!;
-              if (data.isEmpty) {
-                return const SliverToBoxAdapter(child: Center(child: Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: Text('No posts yet! Be the first to post.'),
-                )));
-              }
+            const SliverToBoxAdapter(
+              child: Divider(height: 8, thickness: 8, color: Color(0xFFE4E6EB)),
+            ),
 
-              // Since stream returns only post data, we need to fetch user data.
-              // For simplicity in this widget, we can't do async calls easily for every item in build.
-              // TIP for Exams: Explain that normally you'd use a ViewModel or Join.
-              // Here, we will map to PostModel. The 'user' field will be null initially if we don't join.
-              // To Fix: We should update our query to include profiles, but Supabase SDK .stream() 
-              // currently has limitations on deep joins.
-              // WORKAROUND: We will return a FutureBuilder inside the ListView item OR
-              // fetch the posts as a ONE-TIME Future with select('*, profiles(*)') for the initial load
-              // and use a refresh indicator. 
-              // Let's switch to FutureBuilder with Pull-to-Refresh for a robust "Production-like" feel
-              // that supports Joins easily.
-              
-              return SliverList(
+            // Create Post Input Bar
+            SliverToBoxAdapter(
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Row(
+                  children: [
+                    FutureBuilder<String?>(
+                      future: SupabaseService.currentUserAvatar,
+                      builder: (context, snapshot) {
+                        final avatarUrl = snapshot.data;
+                        return CircleAvatar(
+                          radius: 22,
+                          backgroundColor: Colors.grey[300],
+                          backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                              ? CachedNetworkImageProvider(avatarUrl)
+                              : null,
+                          child: (avatarUrl == null || avatarUrl.isEmpty)
+                              ? const Icon(Icons.person, color: Colors.white)
+                              : null,
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _navigateToCreatePost,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: const Text(
+                            "What's on your mind?",
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(
+              child: Divider(height: 12, thickness: 12, color: Color(0xFFE4E6EB)),
+            ),
+
+            // Posts List
+            if (_isLoading)
+              const SliverFillRemaining(
+                child: Center(
+                  child: CircularProgressIndicator(color: Color(0xFF1877F2)),
+                ),
+              )
+            else if (_posts.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Text(
+                    "No posts yet.\nBe the first to share!",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                ),
+              )
+            else
+              SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final postMap = data[index];
-                    // We need to fetch the user profile for this post lazily or render what we have.
-                    // For now, let's create a wrapper that fetches the user profile.
-                    
-                    return _AsyncPostCard(postMap: postMap);
+                    if (index >= _posts.length) {
+                      return _isLoadingMore
+                          ? const Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          : const SizedBox.shrink();
+                    }
+
+                    return PostCard(
+                      post: _posts[index],
+                      onDeleted: () {
+                        setState(() => _posts.removeAt(index));
+                      },
+                      onUpdated: _refresh,
+                    );
                   },
-                  childCount: data.length,
+                  childCount: _posts.length + (_isLoadingMore ? 1 : 0),
                 ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCreatePostArea() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(12.0),
-      margin: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            backgroundColor: Colors.grey, 
-            child: Icon(Icons.person, color: Colors.white)
-          ), // Current user avatar placeholder
-          const SizedBox(width: 10),
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const CreatePostScreen()));
-              },
-              style: OutlinedButton.styleFrom(
-                shape: const StadiumBorder(),
-                alignment: Alignment.centerLeft,
-                side: const BorderSide(color: Colors.grey),
               ),
-              child: const Text('What\'s on your mind?', style: TextStyle(color: Colors.black)),
-            ),
-          ),
-        ],
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF1877F2),
+        onPressed: _navigateToCreatePost,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
-}
-
-// Helper widget to fetch user details for a post
-class _AsyncPostCard extends StatelessWidget {
-  final Map<String, dynamic> postMap;
-  const _AsyncPostCard({required this.postMap});
 
   @override
-  Widget build(BuildContext context) {
-    // We already have the post data. 
-    // If the stream doesn't include profile data, we fetch it here.
-    final String userId = postMap['user_id'];
-    
-    return FutureBuilder(
-      future: SupabaseService.client.from('profiles').select().eq('id', userId).single(),
-      builder: (context, snapshot) {
-        // Prepare PostModel with available data
-        // If snapshot has data (user profile), we merge it.
-        Map<String, dynamic> fullData = Map.from(postMap);
-        if (snapshot.hasData) {
-          fullData['profiles'] = snapshot.data;
-        }
-        
-        // Pass to PostModel
-        final post = PostModel.fromJson(fullData);
-        
-        return PostCard(post: post);
-      },
-    );
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 }

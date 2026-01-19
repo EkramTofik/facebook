@@ -32,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: email,
         password: password,
       );
-      
+
       // On success, the main wrapper will redirect us (Auth State Change)
     } on AuthException catch (e) {
       if (mounted) {
@@ -40,10 +40,13 @@ class _LoginScreenState extends State<LoginScreen> {
         if (message.contains('Email not confirmed')) {
           message = 'Please check your email and click the confirmation link.';
         }
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unexpected error occurred')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Unexpected error occurred')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -60,9 +63,10 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Logo or Icon
-              const Icon(Icons.facebook, size: 80, color: AppConstants.primaryColor),
+              const Icon(Icons.facebook,
+                  size: 80, color: AppConstants.primaryColor),
               const SizedBox(height: 20),
-              
+
               // Email Field
               TextField(
                 controller: _emailController,
@@ -97,9 +101,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppConstants.primaryColor,
                   ),
-                  child: _isLoading 
+                  child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Log In', style: TextStyle(color: Colors.white, fontSize: 16)),
+                      : const Text('Log In',
+                          style: TextStyle(color: Colors.white, fontSize: 16)),
                 ),
               ),
               const SizedBox(height: 10),
@@ -109,15 +114,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 50,
                 child: OutlinedButton.icon(
-                  onPressed: _isLoading 
-                      ? null 
+                  onPressed: _isLoading
+                      ? null
                       : () async {
                           setState(() => _isLoading = true);
                           await SupabaseService.signInWithGoogle();
                           if (mounted) setState(() => _isLoading = false);
                         },
                   icon: const Icon(Icons.login, color: Colors.red),
-                  label: const Text('Continue with Google', style: TextStyle(color: Colors.black)),
+                  label: const Text('Continue with Google',
+                      style: TextStyle(color: Colors.black)),
                   style: OutlinedButton.styleFrom(
                     backgroundColor: Colors.white,
                   ),
@@ -128,7 +134,8 @@ class _LoginScreenState extends State<LoginScreen> {
               // Sign Up Link
               TextButton(
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SignupScreen()));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const SignupScreen()));
                 },
                 child: const Text('Create New Account'),
               ),
