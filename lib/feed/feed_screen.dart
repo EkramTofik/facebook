@@ -102,15 +102,6 @@ class _FeedScreenState extends State<FeedScreen> {
         child: CustomScrollView(
           controller: _scrollController,
           slivers: [
-            // Stories Bar
-            const SliverToBoxAdapter(
-              child: StoriesBar(),
-            ),
-
-            const SliverToBoxAdapter(
-              child: Divider(height: 8, thickness: 8, color: Color(0xFFE4E6EB)),
-            ),
-
             // Create Post Input Bar
             SliverToBoxAdapter(
               child: Container(
@@ -153,6 +144,15 @@ class _FeedScreenState extends State<FeedScreen> {
                   ],
                 ),
               ),
+            ),
+
+            const SliverToBoxAdapter(
+              child: Divider(height: 8, thickness: 8, color: Color(0xFFE4E6EB)),
+            ),
+
+            // Stories Bar
+            const SliverToBoxAdapter(
+              child: StoriesBar(),
             ),
 
             const SliverToBoxAdapter(

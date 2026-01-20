@@ -4,6 +4,7 @@ import '../services/supabase_service.dart';
 import '../utils/constants.dart';
 import '../models/post_model.dart';
 import '../feed/post_card.dart';
+import 'edit_profile_screen.dart';
 
 /// Facebook-style profile page with cover photo and tabs
 class ProfileScreen extends StatefulWidget {
@@ -95,19 +96,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                             )
                           : null,
                     ),
-                    // Camera button for cover
-                    Positioned(
-                      bottom: 60,
-                      right: 16,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.camera_alt, size: 20),
-                      ),
-                    ),
                     // Profile picture
                     Positioned(
                       bottom: -50,
@@ -198,7 +186,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                       Expanded(
                         flex: 2,
                         child: ElevatedButton.icon(
-                          onPressed: () {},
+                          onPressed: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => EditProfileScreen(profile: _profile!),
+                              ),
+                            );
+                            if (result == true) _fetchData();
+                          },
                           icon:
                               const Icon(Icons.edit, color: Colors.black, size: 18),
                           label: const Text('Edit profile',
@@ -219,7 +215,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: IconButton(
-                          onPressed: () {},
+                          onPressed: () => _showMoreMenu(context),
                           icon: const Icon(Icons.more_horiz),
                         ),
                       ),
@@ -248,10 +244,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                             'Joined ${_formatDate(_profile?['created_at'])}',
                       ),
                       const SizedBox(height: 12),
+                      const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            _tabController.animateTo(1);
+                          },
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(
@@ -308,12 +307,67 @@ class _ProfileScreenState extends State<ProfileScreen>
                     },
                   ),
             // About Tab
-            const Center(child: Text('About section coming soon')),
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Basic Info', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  _AboutItem(icon: Icons.person_outline, label: 'Username', value: _profile?['username'] ?? 'Not set'),
+                  _AboutItem(icon: Icons.badge_outlined, label: 'Full Name', value: _profile?['full_name'] ?? 'Not set'),
+                  _AboutItem(icon: Icons.email_outlined, label: 'Email', value: _profile?['email'] ?? 'Not set'),
+                  _AboutItem(icon: Icons.location_on_outlined, label: 'Location', value: _profile?['location'] ?? 'Not set'),
+                  _AboutItem(icon: Icons.calendar_today_outlined, label: 'Joined', value: _formatDate(_profile?['created_at'])),
+                  const SizedBox(height: 24),
+                  const Text('Bio', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(_profile?['bio'] ?? 'No bio yet...', style: TextStyle(color: Colors.grey[800])),
+                ],
+              ),
+            ),
             // Photos Tab
             const Center(child: Text('Photos section coming soon')),
           ],
         ),
       ),
+    );
+  }
+
+  void _showMoreMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.search),
+                title: const Text('Search profile'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+              ListTile(
+                leading: const Icon(Icons.link),
+                title: const Text('Copy link to profile'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+              ListTile(
+                leading: const Icon(Icons.warning_amber),
+                title: const Text('Profile status'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: const Text('Activity log'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -380,5 +434,33 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
     return tabBar != oldDelegate.tabBar;
+  }
+}
+
+class _AboutItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _AboutItem({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+              Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -659,6 +659,45 @@ class SupabaseService {
     await client.from('notifications').insert(mockNotifs);
   }
 
+  static Future<void> updateProfile({
+    String? username,
+    String? fullName,
+    String? bio,
+    String? location,
+    String? avatarUrl,
+    String? coverUrl,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+
+    final updates = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    if (username != null) updates['username'] = username;
+    if (fullName != null) updates['full_name'] = fullName;
+    if (bio != null) updates['bio'] = bio;
+    if (location != null) updates['location'] = location;
+    if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
+    if (coverUrl != null) updates['cover_url'] = coverUrl;
+
+    await client.from('profiles').update(updates).eq('id', userId);
+    await refreshCurrentProfile();
+  }
+
+  static Future<String?> uploadImage(String filePath, String bucket) async {
+    final userId = currentUserId;
+    if (userId == null) return null;
+
+    final file = File(filePath);
+    final fileExt = filePath.split('.').last;
+    final fileName = '${DateTime.now().toIso8601String()}_$userId.$fileExt';
+    final path = fileName;
+
+    await client.storage.from(bucket).upload(path, file);
+    return client.storage.from(bucket).getPublicUrl(path);
+  }
+
   // ────────────────────────────────────────────────────────────────
   // SEARCH
   // ────────────────────────────────────────────────────────────────
