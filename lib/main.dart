@@ -8,6 +8,7 @@ import 'feed/create_post_screen.dart';
 import 'friends/friends_screen.dart';
 import 'notifications/notifications_screen.dart';
 import 'menu/menu_screen.dart';
+import 'search/search_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,9 @@ Future<void> main() async {
     url: AppConstants.supabaseUrl,
     anonKey: AppConstants.supabaseAnonKey,
   );
+
+  // Load current user profile into cache
+  await SupabaseService.refreshCurrentProfile();
 
   runApp(const FacebookCloneApp());
 }
@@ -95,88 +99,78 @@ class MainContainer extends StatefulWidget {
 }
 
 class _MainContainerState extends State<MainContainer> {
-  int _currentIndex = 0;
-
-  final List<Widget> _screens = [
-    const FeedScreen(),
-    const FriendsScreen(),
-    const SizedBox.shrink(), // Placeholder for Create Post (handled differently)
-    const NotificationsScreen(),
-    const MenuScreen(),
-  ];
-
-  void _onTabTapped(int index) {
-    if (index == 2) {
-      // Create Post - show full screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const CreatePostScreen()),
-      );
-    } else {
-      setState(() => _currentIndex = index);
-    }
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          title: const Text(
+            'facebook',
+            style: TextStyle(
+              color: AppConstants.primaryColor,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -1.2,
+            ),
+          ),
+          actions: [
+            _CircleAction(
+              icon: Icons.search,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _CircleAction(icon: Icons.messenger_outline),
+            const SizedBox(width: 12),
+          ],
+          bottom: TabBar(
+            labelColor: AppConstants.primaryColor,
+            unselectedLabelColor: Colors.grey[600],
+            indicatorColor: AppConstants.primaryColor,
+            indicatorWeight: 3,
+            labelPadding: EdgeInsets.zero,
+            tabs: const [
+              Tab(icon: Icon(Icons.home, size: 28)),
+              Tab(icon: Icon(Icons.people_outline, size: 28)),
+              Tab(icon: Icon(Icons.notifications_none, size: 28)),
+              Tab(icon: Icon(Icons.menu, size: 28)),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            FeedScreen(),
+            FriendsScreen(),
+            NotificationsScreen(),
+            MenuScreen(),
+          ],
+        ),
+      ),
+    );
   }
+}
+
+class _CircleAction extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _CircleAction({required this.icon, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex == 2 ? 0 : _currentIndex, // Don't show placeholder
-        children: _screens,
-      ),
-      bottomNavigationBar: Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(20),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
+          color: Colors.grey[200],
+          shape: BoxShape.circle,
         ),
-        child: SafeArea(
-          child: SizedBox(
-            height: 56,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _NavItem(
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home,
-                  isActive: _currentIndex == 0,
-                  onTap: () => _onTabTapped(0),
-                ),
-                _NavItem(
-                  icon: Icons.people_outline,
-                  activeIcon: Icons.people,
-                  isActive: _currentIndex == 1,
-                  onTap: () => _onTabTapped(1),
-                ),
-                _NavItem(
-                  icon: Icons.add_circle_outline,
-                  activeIcon: Icons.add_circle,
-                  isActive: _currentIndex == 2,
-                  onTap: () => _onTabTapped(2),
-                  isCenter: true,
-                ),
-                _NavItem(
-                  icon: Icons.notifications_outlined,
-                  activeIcon: Icons.notifications,
-                  isActive: _currentIndex == 3,
-                  onTap: () => _onTabTapped(3),
-                  badgeCount: 3, // Mock notification count
-                ),
-                _NavItem(
-                  icon: Icons.menu,
-                  activeIcon: Icons.menu,
-                  isActive: _currentIndex == 4,
-                  onTap: () => _onTabTapped(4),
-                ),
-              ],
-            ),
-          ),
-        ),
+        padding: const EdgeInsets.all(8),
+        child: Icon(icon, size: 22, color: Colors.black87),
       ),
     );
   }

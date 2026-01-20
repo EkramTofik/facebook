@@ -159,6 +159,67 @@ class _PostCardState extends State<PostCard> {
     );
   }
 
+  Future<void> _handleShare() async {
+    final confirmed = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Share this post',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Say something about this...',
+                border: InputBorder.none,
+              ),
+              onSubmitted: (val) => Navigator.pop(ctx, val),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, ''),
+                child: const Text('Share Now'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != null) {
+      try {
+        await SupabaseService.sharePost(
+          postId: widget.post.id,
+          content: confirmed.isEmpty ? null : confirmed,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Shared to your feed!')),
+          );
+          widget.onUpdated?.call();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error sharing: $e')),
+          );
+        }
+      }
+    }
+  }
+
   void _openComments() {
     showModalBottomSheet(
       context: context,
@@ -339,6 +400,10 @@ class _PostCardState extends State<PostCard> {
               ),
             ),
 
+          // Shared Post Content
+          if (widget.post.sharedPost != null)
+            _SharedPostView(post: widget.post.sharedPost!),
+
           // Image
           if (widget.post.imageUrl != null && widget.post.imageUrl!.isNotEmpty)
             CachedNetworkImage(
@@ -413,11 +478,7 @@ class _PostCardState extends State<PostCard> {
               _ActionButton(
                 icon: Icons.share_outlined,
                 label: 'Share',
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Share feature coming soon!')),
-                  );
-                },
+                onTap: _handleShare,
               ),
             ],
           ),
@@ -515,6 +576,68 @@ class _ActionButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SharedPostView extends StatelessWidget {
+  final PostModel post;
+  const _SharedPostView({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundImage: post.authorAvatarUrl != null
+                      ? CachedNetworkImageProvider(post.authorAvatarUrl!)
+                      : null,
+                  child: post.authorAvatarUrl == null
+                      ? const Icon(Icons.person, size: 16)
+                      : null,
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post.authorName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    Text(
+                      timeago.format(post.createdAt),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (post.content != null && post.content!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Text(post.content!, style: const TextStyle(fontSize: 14)),
+            ),
+          if (post.imageUrl != null && post.imageUrl!.isNotEmpty)
+            CachedNetworkImage(
+              imageUrl: post.imageUrl!,
+              memCacheWidth: 800,
+              placeholder: (context, url) => Container(height: 150, color: Colors.grey[200]),
+            ),
+        ],
       ),
     );
   }

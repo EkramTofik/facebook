@@ -24,7 +24,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _fetchData() async {
     try {
-      final notifications = await SupabaseService.getNotifications();
+      var notifications = await SupabaseService.getNotifications();
+      
+      // Seed if empty
+      if (notifications.isEmpty) {
+        await SupabaseService.seedMockNotifications();
+        notifications = await SupabaseService.getNotifications();
+      }
+
       if (mounted) {
         setState(() {
           _notifications = notifications;
@@ -34,6 +41,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (e) {
       debugPrint('Error fetching notifications: $e');
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _markAllAsRead() async {
+    try {
+      await SupabaseService.markAllNotificationsAsRead();
+      setState(() {
+        for (var n in _notifications) {
+          n['is_read'] = true;
+        }
+      });
+    } catch (e) {
+      debugPrint('Error marking all as read: $e');
     }
   }
 
@@ -51,6 +71,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  String _filter = 'All';
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -59,71 +81,87 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       );
     }
 
-    final unread = _notifications.where((n) => !(n['is_read'] as bool)).toList();
-    final read = _notifications.where((n) => (n['is_read'] as bool)).toList();
+    final filteredNotifications = _filter == 'Unread' 
+        ? _notifications.where((n) => !(n['is_read'] as bool)).toList()
+        : _notifications;
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        title: const Text(
-          'Notifications',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Notifications', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        centerTitle: false,
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.search, color: Colors.black87),
-              onPressed: () {},
-            ),
+          IconButton(
+            icon: const Icon(Icons.check_circle_outline),
+            onPressed: _markAllAsRead,
+            tooltip: 'Mark all as read',
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: _fetchData,
-        child: ListView(
+        child: Column(
           children: [
-            if (unread.isNotEmpty) ...[
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  'New',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  _FilterChip(
+                    label: 'All', 
+                    isSelected: _filter == 'All',
+                    onTap: () => setState(() => _filter = 'All'),
+                  ),
+                  const SizedBox(width: 8),
+                  _FilterChip(
+                    label: 'Unread', 
+                    isSelected: _filter == 'Unread',
+                    onTap: () => setState(() => _filter = 'Unread'),
+                  ),
+                ],
               ),
-              ...unread.map((n) => _NotificationCard(
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: filteredNotifications.length,
+                itemBuilder: (context, index) {
+                  final n = filteredNotifications[index];
+                  return _NotificationCard(
                     notification: n,
                     onTap: () => _markAsRead(n['id']),
-                  )),
-            ],
-            if (read.isNotEmpty || unread.isNotEmpty) ...[
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  'Earlier',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                  );
+                },
               ),
-              ...read.map((n) => _NotificationCard(
-                    notification: n,
-                    onTap: () {},
-                  )),
-            ] else
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: Text('No notifications yet')),
-              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _FilterChip({required this.label, required this.isSelected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFE7F3FF) : Colors.grey[200],
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? AppConstants.primaryColor : Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

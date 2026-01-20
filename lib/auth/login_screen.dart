@@ -44,9 +44,10 @@ class _LoginScreenState extends State<LoginScreen> {
             .showSnackBar(SnackBar(content: Text(message)));
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Unexpected error occurred')));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

@@ -27,7 +27,12 @@ class PostModel {
     this.reactionCount = 0,
     this.commentsCount = 0,
     this.myReaction,
+    this.sharedPostId,
+    this.sharedPost,
   });
+
+  final String? sharedPostId;
+  final PostModel? sharedPost;
 
   factory PostModel.fromJson(Map<String, dynamic> json) {
     // Extract my reaction from reactions array if present
@@ -51,6 +56,10 @@ class PostModel {
       reactionCount: (json['reaction_count'] as num?)?.toInt() ?? 0,
       commentsCount: (json['comments_count'] as num?)?.toInt() ?? 0,
       myReaction: myReaction,
+      sharedPostId: json['shared_post_id'] as String?,
+      sharedPost: json['shared_post'] != null 
+          ? PostModel.fromJson(json['shared_post'] as Map<String, dynamic>)
+          : null,
     );
   }
 

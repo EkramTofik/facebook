@@ -12,42 +12,6 @@ class MenuScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        title: const Text(
-          'Menu',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.settings, color: Colors.black87),
-              onPressed: () {},
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.search, color: Colors.black87),
-              onPressed: () {},
-            ),
-          ),
-        ],
-      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -81,11 +45,7 @@ class MenuScreen extends StatelessWidget {
                   label: 'Marketplace',
                   color: Color(0xFF1877F2),
                 ),
-                _MenuShortcut(
-                  icon: Icons.ondemand_video,
-                  label: 'Video',
-                  color: Color(0xFF1877F2),
-                ),
+
                 _MenuShortcut(
                   icon: Icons.history,
                   label: 'Memories',
@@ -228,20 +188,15 @@ class _ProfileCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            FutureBuilder<String?>(
-              future: SupabaseService.currentUserAvatar,
-              builder: (context, snapshot) {
-                return CircleAvatar(
-                  radius: 22,
-                  backgroundColor: Colors.grey[300],
-                  backgroundImage: (snapshot.data != null && snapshot.data!.isNotEmpty)
-                      ? CachedNetworkImageProvider(snapshot.data!)
-                      : null,
-                  child: (snapshot.data == null || snapshot.data!.isEmpty)
-                      ? const Icon(Icons.person, color: Colors.white)
-                      : null,
-                );
-              },
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: Colors.grey[300],
+              backgroundImage: (SupabaseService.currentUserAvatar != null && SupabaseService.currentUserAvatar!.isNotEmpty)
+                  ? CachedNetworkImageProvider(SupabaseService.currentUserAvatar!)
+                  : null,
+              child: (SupabaseService.currentUserAvatar == null || SupabaseService.currentUserAvatar!.isEmpty)
+                  ? const Icon(Icons.person, color: Colors.white)
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(

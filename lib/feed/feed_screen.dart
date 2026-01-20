@@ -96,39 +96,6 @@ class _FeedScreenState extends State<FeedScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        title: const Text(
-          'facebook',
-          style: TextStyle(
-            color: Color(0xFF1877F2),
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.8,
-          ),
-        ),
-        actions: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.grey[200],
-            child: const Icon(Icons.add, color: Colors.black87),
-          ),
-          const SizedBox(width: 12),
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.grey[200],
-            child: const Icon(Icons.search, color: Colors.black87),
-          ),
-          const SizedBox(width: 12),
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.grey[200],
-            child: const Icon(Icons.messenger_outline, color: Colors.black87),
-          ),
-          const SizedBox(width: 12),
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: _refresh,
         color: const Color(0xFF1877F2),
@@ -148,47 +115,40 @@ class _FeedScreenState extends State<FeedScreen> {
             SliverToBoxAdapter(
               child: Container(
                 color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
-                    FutureBuilder<String?>(
-                      future: SupabaseService.currentUserAvatar,
-                      builder: (context, snapshot) {
-                        final avatarUrl = snapshot.data;
-                        return CircleAvatar(
-                          radius: 22,
-                          backgroundColor: Colors.grey[300],
-                          backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                              ? CachedNetworkImageProvider(avatarUrl)
-                              : null,
-                          child: (avatarUrl == null || avatarUrl.isEmpty)
-                              ? const Icon(Icons.person, color: Colors.white)
-                              : null,
-                        );
-                      },
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.grey[200],
+                      backgroundImage: (SupabaseService.currentUserAvatar != null && SupabaseService.currentUserAvatar!.isNotEmpty)
+                          ? CachedNetworkImageProvider(SupabaseService.currentUserAvatar!)
+                          : null,
+                      child: (SupabaseService.currentUserAvatar == null || SupabaseService.currentUserAvatar!.isEmpty)
+                          ? const Icon(Icons.person, color: Colors.grey)
+                          : null,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: GestureDetector(
                         onTap: _navigateToCreatePost,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(color: Colors.grey[300]!),
+                            borderRadius: BorderRadius.circular(25),
                           ),
                           child: const Text(
                             "What's on your mind?",
-                            style: TextStyle(
-                              color: Colors.black54,
-                              fontSize: 15,
-                            ),
+                            style: TextStyle(color: Colors.black87, fontSize: 16),
                           ),
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.photo_library, color: Colors.green, size: 28),
+                      onPressed: _navigateToCreatePost,
                     ),
                   ],
                 ),

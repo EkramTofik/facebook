@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/story_model.dart';
 import '../models/comment_model.dart';
 import '../models/post_model.dart';
+import '../models/user_model.dart';
 
 /// SupabaseService handles global access to the Supabase client.
 class SupabaseService {
@@ -24,18 +25,39 @@ class SupabaseService {
   }
 
   static Future<List<PostModel>> getUserPosts(String userId) async {
-    final response = await client
-        .from('posts')
-        .select('''
-          *,
-          profiles!author_id (*)
-        ''')
-        .eq('author_id', userId)
-        .order('created_at', ascending: false);
-    
-    return List<Map<String, dynamic>>.from(response)
-        .map((json) => PostModel.fromJson(json))
-        .toList();
+    try {
+      final response = await client
+          .from('posts')
+          .select('''
+            *,
+            profiles!author_id (*),
+            shared_post:shared_post_id (
+              *,
+              profiles!author_id (*)
+            )
+          ''')
+          .eq('author_id', userId)
+          .order('created_at', ascending: false);
+      
+      return List<Map<String, dynamic>>.from(response)
+          .map((json) => PostModel.fromJson(json))
+          .toList();
+    } catch (e) {
+      debugPrint('Error fetching user posts with joins: $e');
+      // Fallback for missing shared_post_id
+      final response = await client
+          .from('posts')
+          .select('''
+            *,
+            profiles!author_id (*)
+          ''')
+          .eq('author_id', userId)
+          .order('created_at', ascending: false);
+      
+      return List<Map<String, dynamic>>.from(response)
+          .map((json) => PostModel.fromJson(json))
+          .toList();
+    }
   }
 
   static String? get currentUserEmail => client.auth.currentUser?.email;
@@ -45,30 +67,8 @@ class SupabaseService {
   // ────────────────────────────────────────────────────────────────
   static Map<String, dynamic>? _currentProfileCache;
 
-  static Future<String?> get currentUserAvatar async {
-    if (currentUserId == null) return null;
-
-    if (_currentProfileCache != null &&
-        _currentProfileCache!.containsKey('avatar_url')) {
-      return _currentProfileCache!['avatar_url'] as String?;
-    }
-
-    try {
-      final response = await client
-          .from('profiles')
-          .select('avatar_url, username')
-          .eq('id', currentUserId!)
-          .maybeSingle();
-
-      if (response != null) {
-        _currentProfileCache = response;
-        return response['avatar_url'] as String?;
-      }
-      return null;
-    } catch (e) {
-      debugPrint('Error fetching current user avatar: $e');
-      return null;
-    }
+  static String? get currentUserAvatar {
+    return _currentProfileCache?['avatar_url'] as String?;
   }
 
   static String? get currentUserName {
@@ -77,9 +77,22 @@ class SupabaseService {
         client.auth.currentUser?.email?.split('@').first;
   }
 
+  /// Asynchronously loads or refreshes the current user's profile into cache
   static Future<void> refreshCurrentProfile() async {
-    _currentProfileCache = null;
-    await currentUserAvatar;
+    if (currentUserId == null) return;
+    try {
+      final response = await client
+          .from('profiles')
+          .select('id, username, full_name, avatar_url')
+          .eq('id', currentUserId!)
+          .maybeSingle();
+
+      if (response != null) {
+        _currentProfileCache = response;
+      }
+    } catch (e) {
+      debugPrint('Error refreshing profile: $e');
+    }
   }
 
   static Future<void> signOut() async {
@@ -117,41 +130,64 @@ class SupabaseService {
   static Future<List<PostModel>> getPosts({int offset = 0, int limit = 10}) async {
     final userId = currentUserId;
     
-    final response = await client
-        .from('posts')
-        .select('''
-          *,
-          profiles!author_id (*),
-          reactions!left (reaction_type)
-        ''')
-        .or('visibility.eq.public,visibility.eq.friends')
-        .order('created_at', ascending: false)
-        .range(offset, offset + limit - 1);
+    dynamic response;
+    try {
+      response = await client
+          .from('posts')
+          .select('''
+            *,
+            profiles!author_id (*),
+            reactions!left (reaction_type),
+            shared_post:shared_post_id (
+              *,
+              profiles!author_id (*)
+            )
+          ''')
+          .or('visibility.eq.public,visibility.eq.friends')
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+    } catch (e) {
+      debugPrint('Error fetching posts with joins: $e');
+      // Fallback if shared_post_id doesn't exist yet
+      response = await client
+          .from('posts')
+          .select('''
+            *,
+            profiles!author_id (*),
+            reactions!left (reaction_type)
+          ''')
+          .or('visibility.eq.public,visibility.eq.friends')
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+    }
 
-    // For each post, also get counts
-    final posts = <PostModel>[];
+    final postList = <PostModel>[];
     for (final json in response) {
-      // Get reaction count for this post
-      final reactionCountResponse = await client
-          .from('reactions')
-          .select()
-          .eq('post_id', json['id'])
-          .count(CountOption.exact);
+      final data = Map<String, dynamic>.from(json);
       
-      final commentsCountResponse = await client
-          .from('comments')
-          .select()
-          .eq('post_id', json['id'])
-          .count(CountOption.exact);
-
-      // Filter reactions to only current user's
-      final allReactions = json['reactions'] as List<dynamic>?;
-      String? myReaction;
-      if (allReactions != null && userId != null) {
-        // The reactions from left join may include all, we need to query separately
+      int reactionCount = 0;
+      int commentsCount = 0;
+      
+      try {
+        // Get counts by fetching IDs (robust approach that avoids version-specific API issues)
+        final reactionRes = await client
+            .from('reactions')
+            .select('id')
+            .eq('post_id', json['id']);
+        
+        final commentRes = await client
+            .from('comments')
+            .select('id')
+            .eq('post_id', json['id']);
+            
+        reactionCount = (reactionRes as List).length;
+        commentsCount = (commentRes as List).length;
+      } catch (e) {
+        debugPrint('Error fetching counts for post ${json['id']}: $e');
       }
 
       // Get current user's reaction specifically
+      String? myReaction;
       if (userId != null) {
         final myReactionResponse = await client
             .from('reactions')
@@ -162,15 +198,14 @@ class SupabaseService {
         myReaction = myReactionResponse?['reaction_type'] as String?;
       }
 
-      final enrichedJson = Map<String, dynamic>.from(json);
-      enrichedJson['reaction_count'] = reactionCountResponse.count;
-      enrichedJson['comments_count'] = commentsCountResponse.count;
-      enrichedJson['reactions'] = myReaction != null ? [{'reaction_type': myReaction}] : [];
-
-      posts.add(PostModel.fromJson(enrichedJson));
+      data['reaction_count'] = reactionCount;
+      data['comments_count'] = commentsCount;
+      data['reactions'] = myReaction != null ? [{'reaction_type': myReaction}] : [];
+      
+      postList.add(PostModel.fromJson(data));
     }
-
-    return posts;
+    
+    return postList;
   }
 
   /// Create a new post
@@ -197,6 +232,24 @@ class SupabaseService {
       'author_id': userId,
       'content': content,
       'image_url': imageUrl,
+      'visibility': 'public',
+    });
+  }
+
+  /// Share an existing post
+  static Future<void> sharePost({
+    required String postId,
+    String? content,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('User not logged in');
+
+    await _ensureProfileExists();
+
+    await client.from('posts').insert({
+      'author_id': userId,
+      'content': content,
+      'shared_post_id': postId,
       'visibility': 'public',
     });
   }
@@ -261,6 +314,25 @@ class SupabaseService {
         'post_id': postId,
         'reaction_type': reactionType,
       });
+
+      // Create notification for post author
+      try {
+        final post = await client.from('posts').select('author_id').eq('id', postId).single();
+        final authorId = post['author_id'] as String;
+        
+        if (authorId != userId) {
+          await client.from('notifications').insert({
+            'recipient_id': authorId,
+            'sender_id': userId,
+            'type': 'like',
+            'content': 'reacted to your post',
+            'related_id': postId,
+          });
+        }
+      } catch (e) {
+        debugPrint('Error creating reaction notification: $e');
+      }
+
       return reactionType;
     }
   }
@@ -317,8 +389,27 @@ class SupabaseService {
           profiles!author_id (*)
         ''')
         .single();
+    final comment = CommentModel.fromJson(response);
 
-    return CommentModel.fromJson(response);
+    // Create notification for post author
+    try {
+      final post = await client.from('posts').select('author_id').eq('id', postId).single();
+      final authorId = post['author_id'] as String;
+
+      if (authorId != userId) {
+        await client.from('notifications').insert({
+          'recipient_id': authorId,
+          'sender_id': userId,
+          'type': 'comment',
+          'content': 'commented on your post: "${content.length > 30 ? content.substring(0, 30) + '...' : content}"',
+          'related_id': postId,
+        });
+      }
+    } catch (e) {
+      debugPrint('Error creating comment notification: $e');
+    }
+
+    return comment;
   }
 
   /// Delete a comment (owner only - enforced by RLS)
@@ -447,6 +538,19 @@ class SupabaseService {
       'friend_id': friendId,
       'status': 'pending',
     });
+
+    // Create notification
+    try {
+      await client.from('notifications').insert({
+        'recipient_id': friendId,
+        'sender_id': userId,
+        'type': 'friend_request',
+        'content': 'sent you a friend request',
+        'related_id': userId, // In this case, relates to the sender
+      });
+    } catch (e) {
+      debugPrint('Error creating friend request notification: $e');
+    }
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -474,6 +578,139 @@ class SupabaseService {
         .from('notifications')
         .update({'is_read': true})
         .eq('id', notificationId);
+  }
+
+  static Future<void> markAllNotificationsAsRead() async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    await client
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('recipient_id', userId);
+  }
+
+  static Future<void> seedMockNotifications() async {
+    final userId = currentUserId;
+    if (userId == null) return;
+
+    // Check if we already have notifications
+    final existing = await client
+        .from('notifications')
+        .select('id')
+        .eq('recipient_id', userId)
+        .limit(1);
+
+    if ((existing as List).isNotEmpty) return;
+
+    // Get some mock profiles to be senders
+    final profiles = await client
+        .from('profiles')
+        .select('id')
+        .neq('id', userId)
+        .limit(3);
+
+    if ((profiles as List).isEmpty) return;
+
+    final senderIds = (profiles as List).map((p) => p['id'] as String).toList();
+
+    final mockNotifs = [
+      {
+        'recipient_id': userId,
+        'sender_id': senderIds[0],
+        'type': 'like',
+        'content': 'liked your photo',
+        'is_read': false,
+        'created_at': DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String(),
+      },
+      {
+        'recipient_id': userId,
+        'sender_id': senderIds[1 % senderIds.length],
+        'type': 'comment',
+        'content': 'commented on your post: "Amazing work! 🔥"',
+        'is_read': false,
+        'created_at': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
+      },
+      {
+        'recipient_id': userId,
+        'sender_id': senderIds[2 % senderIds.length],
+        'type': 'friend_request',
+        'content': 'sent you a friend request',
+        'is_read': false,
+        'created_at': DateTime.now().subtract(const Duration(hours: 5)).toIso8601String(),
+      },
+      {
+        'recipient_id': userId,
+        'sender_id': senderIds[0],
+        'type': 'post',
+        'content': 'shared a new post you might like',
+        'is_read': true,
+        'created_at': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+      },
+      {
+        'recipient_id': userId,
+        'sender_id': senderIds[1 % senderIds.length],
+        'type': 'like',
+        'content': 'and 5 others liked your status update',
+        'is_read': true,
+        'created_at': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
+      },
+    ];
+
+    await client.from('notifications').insert(mockNotifs);
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // SEARCH
+  // ────────────────────────────────────────────────────────────────
+
+  /// Search for profiles by username or full name
+  static Future<List<UserModel>> searchProfiles(String query) async {
+    final response = await client
+        .from('profiles')
+        .select()
+        .or('username.ilike.%$query%,full_name.ilike.%$query%')
+        .limit(20);
+
+    return List<Map<String, dynamic>>.from(response)
+        .map((json) => UserModel.fromJson(json))
+        .toList();
+  }
+
+  /// Search for posts by content
+  static Future<List<PostModel>> searchPosts(String query) async {
+    try {
+      final response = await client
+          .from('posts')
+          .select('''
+            *,
+            profiles!author_id (*),
+            shared_post:shared_post_id (
+              *,
+              profiles!author_id (*)
+            )
+          ''')
+          .ilike('content', '%$query%')
+          .order('created_at', ascending: false)
+          .limit(20);
+
+      return List<Map<String, dynamic>>.from(response)
+          .map((json) => PostModel.fromJson(json))
+          .toList();
+    } catch (e) {
+      // Fallback if shared_post relationship is missing
+      final response = await client
+          .from('posts')
+          .select('''
+            *,
+            profiles!author_id (*)
+          ''')
+          .ilike('content', '%$query%')
+          .order('created_at', ascending: false)
+          .limit(20);
+      return List<Map<String, dynamic>>.from(response)
+          .map((json) => PostModel.fromJson(json))
+          .toList();
+    }
   }
 
   // ────────────────────────────────────────────────────────────────

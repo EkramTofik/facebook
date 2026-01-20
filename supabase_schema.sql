@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS public.posts (
     content     TEXT,
     image_url   TEXT,
     visibility  TEXT NOT NULL DEFAULT 'public',
+    shared_post_id UUID REFERENCES public.posts(id) ON DELETE SET NULL,
     created_at  TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at  TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
@@ -184,7 +185,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- ============================================
--- 12. SYNC EXISTING USERS
+-- 11. SYNC EXISTING USERS
 -- ============================================
 -- Ensure any existing users have profiles (fixes FK errors if app was run before triggers)
 INSERT INTO public.profiles (id, email, username)
@@ -193,24 +194,37 @@ FROM auth.users
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
--- 11. MOCK DATA
+-- 12. MOCK DATA
 -- ============================================
 -- 1. Create Mock Profiles
 INSERT INTO public.profiles (id, username, full_name, avatar_url, bio, location)
 VALUES 
-('d1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'john_doe', 'John Doe', 'https://i.pravatar.cc/150?img=1', 'Flutter Developer & Tech Enthusiast', 'New York, USA'),
-('a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'sarah_smith', 'Sarah Smith', 'https://i.pravatar.cc/150?img=5', 'Traveler | Foodie | Life seeker', 'London, UK'),
-('b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e', 'mike_williams', 'Mike Williams', 'https://i.pravatar.cc/150?img=8', 'Photography is my passion.', 'Toronto, Canada')
+('d1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'john_doe', 'John Doe', 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQjb3wjXm6cHAqKOY8gvsrMjwK315S3ptrbIA&s', 'Flutter Developer & Tech Enthusiast', 'New York, USA'),
+('a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'sarah_smith', 'Sarah Smith', 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTLOfv1543QS1cF3kFJTNRfBhKVWw8yoOdaKA&s', 'Traveler | Foodie | Life seeker', 'London, UK'),
+('b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e', 'mike_williams', 'Mike Williams', 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSPyIKV1DkbtCj_PFnZ-0Vln5ULwMPMuOFK9w&s', 'Photography is my passion.', 'Toronto, Canada')
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. Create Mock Posts
 INSERT INTO public.posts (author_id, content, image_url, visibility)
 VALUES 
-('d1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'Just finished building this Facebook clone! What do you think?', 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97', 'public'),
+('d1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'Just finished building this Facebook clone! What do you think?', 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQF2yaox2cALIq_yyd-9qEyovEsficJr7X9QQ&s', 'public'),
 ('a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'Enjoying a beautiful sunset in London today. #blessed', 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad', 'public');
 
+-- 3. Create Mock Notifications
+-- Use the IDs from profiles above
+-- recipient_id, sender_id, type, content, is_read
+INSERT INTO public.notifications (recipient_id, sender_id, type, content, is_read)
+VALUES 
+-- Sarah reacts to John's post
+('d1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'like', 'liked your post', false),
+-- Mike comments on John's post
+('d1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e', 'comment', 'commented: "Great work on the clone!"', false),
+-- Mike sends a friend request to Sarah
+('a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'b1c2d3e4-f5a6-7b8c-9d0e-1f2a3b4c5d6e', 'friend_request', 'sent you a friend request', true)
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================
--- 10. INDEXES
+-- 13. INDEXES
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_posts_author_created     ON public.posts(author_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reactions_post           ON public.reactions(post_id);
@@ -219,7 +233,7 @@ CREATE INDEX IF NOT EXISTS idx_stories_author_expires   ON public.stories(author
 CREATE INDEX IF NOT EXISTS idx_friends_status_users     ON public.friends(status, user_id, friend_id);
 
 -- ============================================
--- 11. RPC: Get post stats
+-- 14. RPC: Get post stats
 -- ============================================
 CREATE OR REPLACE FUNCTION get_post_stats(p_post_id UUID)
 RETURNS JSON AS $$
@@ -239,3 +253,16 @@ BEGIN
     RETURN result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================
+-- 15. STORAGE BUCKETS (Must run in SQL Editor)
+-- ============================================
+-- Create the necessary storage buckets
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('post_images', 'post_images', true), 
+       ('story_images', 'story_images', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Grant public access to view those images
+DROP POLICY IF EXISTS "Public Select Access" ON storage.objects;
+CREATE POLICY "Public Select Access" ON storage.objects FOR SELECT USING (bucket_id = 'post_images' OR bucket_id = 'story_images');

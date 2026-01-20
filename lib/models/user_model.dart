@@ -3,12 +3,14 @@ class UserModel {
   final String email;
   final String username;
   final String? avatarUrl;
+  final String? fullName;
   final DateTime createdAt;
 
   UserModel({
     required this.id,
     required this.email,
     required this.username,
+    this.fullName,
     this.avatarUrl,
     required this.createdAt,
   });
@@ -19,6 +21,7 @@ class UserModel {
       id: json['id'] as String? ?? '',
       email: json['email'] as String? ?? '',
       username: json['username'] as String? ?? 'User',
+      fullName: json['full_name'] as String?,
       avatarUrl: json['avatar_url'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
